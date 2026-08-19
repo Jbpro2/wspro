@@ -164,6 +164,7 @@ async fn handle_http_dual_raw(mut stream: TcpStream, status: &str, ssh_port: u16
     // Fator 3: SSH connect timeout reduzido para 3s
     let ssh = timeout(Duration::from_secs(3), TcpStream::connect(format!("127.0.0.1:{}", ssh_port))).await.map_err(|_| Box::new(std::io::Error::new(std::io::ErrorKind::TimedOut, "SSH Connect Timeout")) as XhttpError)?.map_err(|e| Box::new(e) as XhttpError)?;
     let (mut r, mut w) = stream.into_split();
+    let _ = ssh.set_nodelay(true);
     let (mut sr, mut sw) = ssh.into_split();
     let _ = tokio::join!(tokio::io::copy(&mut r, &mut sw), tokio::io::copy(&mut sr, &mut w));
     Ok(())
@@ -173,6 +174,7 @@ async fn handle_ssh_direct(stream: TcpStream, ssh_port: u16) -> Result<(), Xhttp
     // Fator 3: SSH connect timeout reduzido para 3s
     let ssh = timeout(Duration::from_secs(3), TcpStream::connect(format!("127.0.0.1:{}", ssh_port))).await.map_err(|_| Box::new(std::io::Error::new(std::io::ErrorKind::TimedOut, "SSH Connect Timeout")) as XhttpError)?.map_err(|e| Box::new(e) as XhttpError)?;
     let (mut r, mut w) = stream.into_split();
+    let _ = ssh.set_nodelay(true);
     let (mut sr, mut sw) = ssh.into_split();
     let _ = tokio::join!(tokio::io::copy(&mut r, &mut sw), tokio::io::copy(&mut sr, &mut w));
     Ok(())
@@ -185,6 +187,7 @@ async fn handle_ssh_direct_tls(tls_stream: tokio_rustls::server::TlsStream<TcpSt
         ssh.write_all(&data).await.map_err(|e| Box::new(e) as XhttpError)?;
     }
     let (mut r, mut w) = tokio::io::split(tls_stream);
+    let _ = ssh.set_nodelay(true);
     let (mut sr, mut sw) = ssh.into_split();
     let _ = tokio::join!(tokio::io::copy(&mut r, &mut sw), tokio::io::copy(&mut sr, &mut w));
     Ok(())
