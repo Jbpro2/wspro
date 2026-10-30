@@ -60,38 +60,53 @@ async fn start_http(listener: TcpListener, status: String) {
 }
 
 async fn handle_client(mut client_stream: TcpStream, status: &str) -> Result<(), Error> {
-    // SEMPRE envia 101 primeiro
+    // Primeiro handshake 101.
     client_stream
         .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
         .await?;
 
-    // SEMPRE le do cliente
-    let mut buffer = vec![0; 1024];
-    let _ = client_stream.read(&mut buffer).await?;
+    // Guarda os dados iniciais para detectar o protocolo e não os perder
+    // quando a conexão for encaminhada ao serviço de destino.
+    let mut initial_data = vec![0; 1024];
+    let initial_len = client_stream.read(&mut initial_data).await?;
+    initial_data.truncate(initial_len);
 
-    // SEMPRE envia 200
+    // Segundo handshake 101 e resposta 200, usando o status configurado.
+    client_stream
+        .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
+        .await?;
     client_stream
         .write_all(format!("HTTP/1.1 200 {}\r\n\r\n", status).as_bytes())
         .await?;
 
-    // Detecta SSH vs VPN pelo peek
-    let mut addr_proxy = "127.0.0.1:22";
-    let result = timeout(Duration::from_secs(2), peek_stream(&mut client_stream)).await
-        .unwrap_or_else(|_| Ok(String::new()));
-
-    if let Ok(data) = result {
-        if data.contains("SSH") || data.is_empty() {
-            addr_proxy = "127.0.0.1:22";
-        } else {
-            addr_proxy = "127.0.0.1:1194";
+    // Detecta SSH versus OpenVPN pelo payload inicial e, se necessário,
+    // pelos próximos dados disponíveis no socket (sem consumi-los).
+    let initial_text = String::from_utf8_lossy(&initial_data);
+    let use_ssh = if initial_text.contains("SSH") {
+        true
+    } else {
+        match timeout(Duration::from_secs(5), peek_stream(&client_stream)).await {
+            Ok(Ok(data)) => data.contains("SSH") || data.is_empty(),
+            Ok(Err(_)) | Err(_) => true,
         }
-    }
+    };
+    let addr_proxy = if use_ssh {
+        "127.0.0.1:22"
+    } else {
+        "127.0.0.1:1194"
+    };
 
     let server_connect = timeout(Duration::from_secs(5), TcpStream::connect(addr_proxy)).await;
-    let server_stream = match server_connect {
-        Ok(Ok(s)) => s,
+    let mut server_stream = match server_connect {
+        Ok(Ok(stream)) => stream,
         _ => return Ok(()),
     };
+
+    // Repassa qualquer dado que o read inicial já tenha consumido.
+    if !initial_data.is_empty() {
+        server_stream.write_all(&initial_data).await?;
+    }
+
     let (mut client_read, mut client_write) = client_stream.into_split();
     let (mut server_read, mut server_write) = server_stream.into_split();
 
