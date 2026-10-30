@@ -289,6 +289,57 @@ close_port() {
     sleep 2
 }
 
+manage_special_service() {
+    local TITLE="$1"
+    local SERVICE="$2"
+    local OPEN_FUNCTION="$3"
+    local ACTION
+
+    while true; do
+        clear
+        show_banner
+        echo ""
+        box_top
+        box_line "${WHITE}${BOLD}${TITLE}${NC}"
+        box_mid
+        box_line "${WHITE}[01]${NC} - ABRIR / CONFIGURAR"
+        box_line "${YELLOW}[02]${NC} - REINICIAR PORTA"
+        box_line "${RED}[03]${NC} - FECHAR PORTA"
+        box_mid
+        box_line "${WHITE}[00]${NC} - VOLTAR"
+        box_bottom
+        echo ""
+        read -r -p "Escolha uma opção: " ACTION
+
+        case "$ACTION" in
+            01|1)
+                "$OPEN_FUNCTION"
+                ;;
+            02|2)
+                if systemctl restart "$SERVICE" 2>/dev/null; then
+                    echo -e "${GREEN}${TITLE} reiniciado!${NC}"
+                else
+                    echo -e "${RED}Não foi possível reiniciar ${SERVICE}.${NC}"
+                fi
+                read -r -p "Enter para continuar..." _
+                ;;
+            03|3)
+                systemctl stop "$SERVICE" 2>/dev/null
+                systemctl disable "$SERVICE" 2>/dev/null
+                rm -f "${SYSTEMD_DIR}/${SERVICE}"
+                systemctl daemon-reload
+                echo -e "${GREEN}${TITLE} fechado!${NC}"
+                read -r -p "Enter para continuar..." _
+                ;;
+            00|0)
+                return
+                ;;
+            *)
+                ;;
+        esac
+    done
+}
+
 show_menu() {
     clear
     show_banner
@@ -317,8 +368,8 @@ while true; do
         01|1) open_port ;;
         02|2) close_port ;;
         03|3) restart_port ;;
-        04|4) open_xhttp ;;
-        05|5) open_integrated ;;
+        04|4) manage_special_service "PROXY + PROTOCOLO (443)" "proxy-443.service" open_xhttp ;;
+        05|5) manage_special_service "PROTOCOLO INTEGRADO" "proxy-integrated.service" open_integrated ;;
         00|0) exit 0 ;;
         *) sleep 1 ;;
     esac
