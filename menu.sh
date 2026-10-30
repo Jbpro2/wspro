@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ============================================
-# Mpro Menu - Free v5
+# WSPRO Menu - Free v5
 # ============================================
 
 LKPROXY="/opt/mpro/proxy"
@@ -20,15 +20,13 @@ MAGENTA='\033[0;35m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-BOX_WIDTH=46   
+BOX_WIDTH=46
 
 strip_len() {
     local clean
     clean=$(echo -ne "$1" | sed -r 's/\x1B\[[0-9;]*[mK]//g')
     echo -n "${#clean}"
 }
-
-NBSP=$'\xc2\xa0'
 
 box_line() {
     local content="$1"
@@ -38,11 +36,8 @@ box_line() {
     [ $pad -lt 0 ] && pad=0
     echo -ne "${CYAN}║${NC} "
     echo -ne "${content}"
-    local i
-    for ((i=0; i<pad; i++)); do
-        printf '%s' "$NBSP"
-    done
-    echo -e "${CYAN}║${NC}"
+    printf '%*s' "$pad" ''
+    echo -e " ${CYAN}║${NC}"
 }
 
 box_top() {
@@ -64,8 +59,7 @@ box_bottom() {
 }
 
 show_banner() {
-echo -e "${PURPLE}${BOLD}             W S P R O                 ${NC}"
-echo -e "${BLUE}${BOLD}         F R E E   V E R S I O N       ${NC}"
+echo -e "${CYAN}${BOLD}    W S P R O  F R E E  V E R S I O N${NC}"
 echo -e "${BLUE}${BOLD}----------------------------------------${NC}"
 }
 
@@ -162,7 +156,7 @@ open_port() {
     box_line "${WHITE}${BOLD}Abrir Porta${NC}"
     box_mid
     box_line "${WHITE}Portas padrão: 80, 8080, 8880, 3128${NC}"
-    box_line "${YELLOW}Porta 443: use opção [04] xHTTP/SSL${NC}"
+    box_line "${YELLOW}Porta 443: use opção [04] PROXY + PROTOCOLO${NC}"
     box_bottom
     echo ""
     read -p "Porta: " PORT
@@ -171,7 +165,7 @@ open_port() {
         echo -e "${RED}Porta ${PORT} já está em uso!${NC}"; sleep 2; return
     fi
     read -p "Habilitar o HTTPS? (s/n): " HTTPS
-    read -p "Status HTTP (Padrão: @Mpro): " STATUS
+    read -r -p "Nome do status HTTP: " STATUS
     [[ -z "$STATUS" ]] && STATUS="@Mpro"
     read -p "Habilitar somente SSH? (s/n): " SSH_ONLY
     mkdir -p /opt/mpro
@@ -191,7 +185,7 @@ open_xhttp() {
     box_line "${WHITE}${BOLD}xHTTP_SSH / SSL TUNNEL - Porta 443${NC}"
     box_bottom
     echo ""
-    read -p "Status HTTP (Padrão: @Mpro): " STATUS
+    read -r -p "Nome do status HTTP: " STATUS
     [[ -z "$STATUS" ]] && STATUS="@Mpro"
     read -p "Porta SSH backend (Padrão: 22): " SSH_PORT
     [[ -z "$SSH_PORT" ]] && SSH_PORT="22"
@@ -234,7 +228,7 @@ open_integrated() {
         [[ -z "$QPORT" ]] && QPORT="8001"
         QUIC_ARG="--quic --quic-port $QPORT"
     fi
-    read -p "Status HTTP (Padrão: @Mpro): " STATUS
+    read -r -p "Nome do status HTTP: " STATUS
     [[ -z "$STATUS" ]] && STATUS="@Mpro"
     mkdir -p /opt/mpro
     if [ ! -f "/opt/mpro/cert.pem" ]; then
@@ -307,8 +301,8 @@ show_menu() {
     box_line "${WHITE}[01]${NC} - ABRIR PORTA"
     box_line "${WHITE}[02]${NC} - FECHAR PORTA"
     box_line "${WHITE}[03]${NC} - REINICIAR PORTA"
-    box_line "${MAGENTA}[04]${NC} - xHTTP_SSH / SSL TUNNEL ${GREEN}(${YELLOW}443${GREEN})${NC}"
-    box_line "${BLUE}[05]${NC} - PROXY + PROTOCOLO INTEGRADO (DTUNNEL/XHTTP)"
+    box_line "${MAGENTA}[04]${NC} - PROXY + PROTOCOLO"
+    box_line "${BLUE}[05]${NC} - PROTOCOLO INTEGRADO"
     box_line ""
     box_line "${WHITE}[00]${NC} - SAIR"
     box_bottom

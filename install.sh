@@ -40,8 +40,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 clear
-echo -e "${PURPLE}${BOLD}             W S P R O                 ${NC}"
-echo -e "${BLUE}${BOLD}         F R E E   V E R S I O N       ${NC}"
+echo -e "${CYAN}${BOLD}    W S P R O  F R E E  V E R S I O N${NC}"
 echo -e "${BLUE}${BOLD}----------------------------------------${NC}"
 log_info "Iniciando instalação do WSPRO v3.1.0 (🇧🇷)..."
 
