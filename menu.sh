@@ -64,12 +64,7 @@ box_bottom() {
 }
 
 show_banner() {
-echo -e "${PURPLE}${BOLD} ███╗   ███╗██████╗ ██████╗  ██████╗ ${NC}"
-echo -e "${PURPLE}${BOLD} ████╗ ████║██╔══██╗██╔══██╗██╔═══██╗${NC}"
-echo -e "${BLUE}${BOLD} ██╔████╔██║██████╔╝██████╔╝██║   ██║${NC}"
-echo -e "${BLUE}${BOLD} ██║╚██╔╝██║██╔═══╝ ██╔══██╗██║   ██║${NC}"
-echo -e "${PURPLE}${BOLD} ██║ ╚═╝ ██║██║     ██║  ██║╚██████╔╝${NC}"
-echo -e "${BLUE}${BOLD} ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝ ${NC}"
+echo -e "${PURPLE}${BOLD}             W S P R O                 ${NC}"
 echo -e "${BLUE}${BOLD}         F R E E   V E R S I O N       ${NC}"
 echo -e "${BLUE}${BOLD}----------------------------------------${NC}"
 }
@@ -305,7 +300,7 @@ show_menu() {
     show_banner
     echo ""
     box_top
-    box_line "${WHITE}${BOLD}Mpro Menu Free v2.3${NC}"
+    box_line "${WHITE}${BOLD}WSPRO Menu Free v2.3${NC}"
     box_mid
     show_active_ports
     box_mid

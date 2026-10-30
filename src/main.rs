@@ -14,7 +14,7 @@ async fn main() -> Result<(), Error> {
     let use_quic = has_arg("-q");
     let quic_port = get_quic_port();
 
-    println!("[Mpro] Multi-protocolo v2.5.0");
+    println!("[WSPRO] Multi-protocolo v2.5.0");
     println!("[TCP] Porta: {}", port);
     
     if use_udp {
@@ -65,19 +65,14 @@ async fn handle_client(mut client_stream: TcpStream, status: &str) -> Result<(),
         .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
         .await?;
 
-    // Guarda os dados iniciais para detectar o protocolo e não os perder
-    // quando a conexão for encaminhada ao serviço de destino.
+    // Lê o primeiro payload depois do handshake. Um timeout curto evita
+    // deixar conexões sem dados presas indefinidamente.
     let mut initial_data = vec![0; 1024];
-    let initial_len = client_stream.read(&mut initial_data).await?;
+    let initial_len = match timeout(Duration::from_secs(5), client_stream.read(&mut initial_data)).await {
+        Ok(result) => result?,
+        Err(_) => 0,
+    };
     initial_data.truncate(initial_len);
-
-    // Segundo handshake 101 e resposta 200, usando o status configurado.
-    client_stream
-        .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
-        .await?;
-    client_stream
-        .write_all(format!("HTTP/1.1 200 {}\r\n\r\n", status).as_bytes())
-        .await?;
 
     // Detecta SSH versus OpenVPN pelo payload inicial e, se necessário,
     // pelos próximos dados disponíveis no socket (sem consumi-los).
@@ -99,21 +94,26 @@ async fn handle_client(mut client_stream: TcpStream, status: &str) -> Result<(),
     let server_connect = timeout(Duration::from_secs(5), TcpStream::connect(addr_proxy)).await;
     let mut server_stream = match server_connect {
         Ok(Ok(stream)) => stream,
-        _ => return Ok(()),
+        _ => {
+            client_stream
+                .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
+                .await?;
+            return Ok(());
+        }
     };
+
+    // Envia o status final somente depois que o backend aceitou a conexão.
+    client_stream
+        .write_all(format!("HTTP/1.1 200 {}\r\n\r\n", status).as_bytes())
+        .await?;
 
     // Repassa qualquer dado que o read inicial já tenha consumido.
     if !initial_data.is_empty() {
         server_stream.write_all(&initial_data).await?;
     }
 
-    let (mut client_read, mut client_write) = client_stream.into_split();
-    let (mut server_read, mut server_write) = server_stream.into_split();
-
-    let _ = tokio::join!(
-        tokio::io::copy(&mut client_read, &mut server_write),
-        tokio::io::copy(&mut server_read, &mut client_write)
-    );
+    // Mantém cada metade do túnel até terminar a respectiva direção.
+    tokio::io::copy_bidirectional(&mut client_stream, &mut server_stream).await?;
 
     Ok(())
 }

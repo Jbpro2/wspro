@@ -3,7 +3,7 @@
 
 REPO_URL="https://github.com/Jbpro2/wspro.git"
 REPO_BRANCH="main"
-CMD_NAME="mpro"
+CMD_NAME="wspro"
 TOTAL_STEPS=7
 
 CURRENT_STEP=0
@@ -40,15 +40,10 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 clear
-echo -e "${PURPLE}${BOLD} ███╗   ███╗██████╗ ██████╗  ██████╗ ${NC}"
-echo -e "${PURPLE}${BOLD} ████╗ ████║██╔══██╗██╔══██╗██╔═══██╗${NC}"
-echo -e "${BLUE}${BOLD} ██╔████╔██║██████╔╝██████╔╝██║   ██║${NC}"
-echo -e "${BLUE}${BOLD} ██║╚██╔╝██║██╔═══╝ ██╔══██╗██║   ██║${NC}"
-echo -e "${PURPLE}${BOLD} ██║ ╚═╝ ██║██║     ██║  ██║╚██████╔╝${NC}"
-echo -e "${BLUE}${BOLD} ╚═╝     ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝ ${NC}"
+echo -e "${PURPLE}${BOLD}             W S P R O                 ${NC}"
 echo -e "${BLUE}${BOLD}         F R E E   V E R S I O N       ${NC}"
 echo -e "${BLUE}${BOLD}----------------------------------------${NC}"
-log_info "Iniciando instalação do Mpro v3.1.0 (🇧🇷)..."
+log_info "Iniciando instalação do WSPRO v3.1.0 (🇧🇷)..."
 
 # --- Etapa 1 ---
 show_progress "Atualizando dependências..."
@@ -107,8 +102,8 @@ fi
 if [ -f "menu.sh" ]; then
     cp -f menu.sh /opt/mpro/menu
     chmod +x /opt/mpro/menu
-    ln -sf /opt/mpro/menu /usr/local/bin/mpro
     ln -sf /opt/mpro/menu /usr/local/bin/wspro
+    ln -sf /opt/mpro/menu /usr/local/bin/mpro
 fi
 
 # Certificados
@@ -122,5 +117,5 @@ rm -rf /tmp/Mpro_build
 
 # --- Etapa 7 ---
 log_success "Instalação concluída com sucesso!"
-echo -e "Use o comando ${YELLOW}wspro${NC} ou ${YELLOW}mpro${NC} para abrir o menu."
+echo -e "Use o comando ${YELLOW}wspro${NC} para abrir o menu."
 echo -e "--------------------------------------------------------------"
