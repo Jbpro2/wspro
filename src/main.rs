@@ -65,55 +65,47 @@ async fn handle_client(mut client_stream: TcpStream, status: &str) -> Result<(),
         .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
         .await?;
 
-    // Lê o primeiro payload depois do handshake. Um timeout curto evita
-    // deixar conexões sem dados presas indefinidamente.
-    let mut initial_data = vec![0; 1024];
-    let initial_len = match timeout(Duration::from_secs(5), client_stream.read(&mut initial_data)).await {
-        Ok(result) => result?,
-        Err(_) => 0,
-    };
-    initial_data.truncate(initial_len);
+    // Consome o pedido/controle inicial do cliente, como no fluxo original.
+    // Esses bytes não são dados do túnel e não devem ser enviados ao SSH/VPN.
+    let mut handshake_buffer = [0u8; 1024];
+    let _ = timeout(
+        Duration::from_secs(5),
+        client_stream.read(&mut handshake_buffer),
+    )
+    .await;
 
-    // Detecta SSH versus OpenVPN pelo payload inicial e, se necessário,
-    // pelos próximos dados disponíveis no socket (sem consumi-los).
-    let initial_text = String::from_utf8_lossy(&initial_data);
-    let use_ssh = if initial_text.contains("SSH") {
-        true
-    } else {
-        match timeout(Duration::from_secs(5), peek_stream(&client_stream)).await {
-            Ok(Ok(data)) => data.contains("SSH") || data.is_empty(),
-            Ok(Err(_)) | Err(_) => true,
-        }
-    };
-    let addr_proxy = if use_ssh {
-        "127.0.0.1:22"
-    } else {
-        "127.0.0.1:1194"
-    };
-
-    let server_connect = timeout(Duration::from_secs(5), TcpStream::connect(addr_proxy)).await;
-    let mut server_stream = match server_connect {
-        Ok(Ok(stream)) => stream,
-        _ => {
-            client_stream
-                .write_all(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
-                .await?;
-            return Ok(());
-        }
-    };
-
-    // Envia o status final somente depois que o backend aceitou a conexão.
+    // Segundo 101 e status final configurado, conforme o perfil HTTP do cliente.
+    client_stream
+        .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
+        .await?;
     client_stream
         .write_all(format!("HTTP/1.1 200 {}\r\n\r\n", status).as_bytes())
         .await?;
 
-    // Repassa qualquer dado que o read inicial já tenha consumido.
-    if !initial_data.is_empty() {
-        server_stream.write_all(&initial_data).await?;
-    }
+    // Detecção multiprotocolo: SSH (22) ou VPN/OpenVPN (1194).
+    // peek observa os próximos bytes sem consumi-los.
+    let addr_proxy = match timeout(Duration::from_secs(5), peek_stream(&client_stream)).await {
+        Ok(Ok(data)) if data.contains("SSH") || data.is_empty() => "127.0.0.1:22",
+        Ok(_) => "127.0.0.1:1194",
+        Err(_) => "127.0.0.1:22",
+    };
+    println!("[HTTP] Protocolo detectado, backend: {}", addr_proxy);
 
-    // Mantém cada metade do túnel até terminar a respectiva direção.
-    tokio::io::copy_bidirectional(&mut client_stream, &mut server_stream).await?;
+    let server_connect = timeout(Duration::from_secs(5), TcpStream::connect(addr_proxy)).await;
+    let server_stream = match server_connect {
+        Ok(Ok(stream)) => stream,
+        Ok(Err(error)) => {
+            println!("[HTTP] Falha ao conectar em {}: {}", addr_proxy, error);
+            return Ok(());
+        }
+        Err(_) => {
+            println!("[HTTP] Timeout conectando em {}", addr_proxy);
+            return Ok(());
+        }
+    };
+
+    // Mantém o túnel bidirecional sem encaminhar o buffer de handshake.
+    let _ = tokio::io::copy_bidirectional(&mut client_stream, &mut server_stream).await;
 
     Ok(())
 }
