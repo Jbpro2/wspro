@@ -108,6 +108,7 @@ if [ -f "menu.sh" ]; then
     cp -f menu.sh /opt/mpro/menu
     chmod +x /opt/mpro/menu
     ln -sf /opt/mpro/menu /usr/local/bin/mpro
+    ln -sf /opt/mpro/menu /usr/local/bin/wspro
 fi
 
 # Certificados
@@ -121,5 +122,5 @@ rm -rf /tmp/Mpro_build
 
 # --- Etapa 7 ---
 log_success "Instalação concluída com sucesso!"
-echo -e "Use o comando ${YELLOW}mpro${NC} para abrir o menu."
+echo -e "Use o comando ${YELLOW}wspro${NC} ou ${YELLOW}mpro${NC} para abrir o menu."
 echo -e "--------------------------------------------------------------"
