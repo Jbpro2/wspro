@@ -271,22 +271,71 @@ restart_port() {
     sleep 2
 }
 
-close_port() {
-    clear
-    show_banner
-    echo ""
-    box_top
-    show_active_ports
-    box_bottom
-    echo ""
-    read -p "Porta (ou 'integrated'): " PORT
-    [[ -z "$PORT" ]] && return
-    systemctl stop "proxy-${PORT}.service" 2>/dev/null
-    systemctl disable "proxy-${PORT}.service" 2>/dev/null
-    rm -f "${SYSTEMD_DIR}/proxy-${PORT}.service"
+close_service() {
+    local SERVICE="$1"
+    local SERVICE_FILE="${SYSTEMD_DIR}/${SERVICE}"
+    if ! systemctl stop "$SERVICE" 2>/dev/null; then
+        echo -e "${RED}Não foi possível parar ${SERVICE}; arquivo mantido.${NC}"
+        read -r -p "Enter para continuar..." _
+        return 1
+    fi
+    systemctl disable "$SERVICE" 2>/dev/null || true
+    rm -f "$SERVICE_FILE"
     systemctl daemon-reload
-    echo -e "${GREEN}Porta ${PORT} fechada!${NC}"
-    sleep 2
+    echo -e "${GREEN}${SERVICE} fechado!${NC}"
+    read -r -p "Enter para continuar..." _
+}
+
+close_port() {
+    local SERVICE_FILE SERVICE NAME LABEL CHOICE INDEX=0 SELECTED=""
+    local -a ACTIVE_SERVICES=() ACTIVE_LABELS=()
+
+    while true; do
+        ACTIVE_SERVICES=()
+        ACTIVE_LABELS=()
+        for SERVICE_FILE in "${SYSTEMD_DIR}"/proxy-*.service; do
+            [[ -f "$SERVICE_FILE" ]] || continue
+            SERVICE=$(basename "$SERVICE_FILE")
+            systemctl is-active --quiet "$SERVICE" 2>/dev/null || continue
+            NAME=${SERVICE#proxy-}
+            NAME=${NAME%.service}
+            case "$NAME" in
+                integrated) LABEL="INTEGRADO" ;;
+                443) LABEL="XHTTP (443)" ;;
+                *) LABEL="PORTA ${NAME}" ;;
+            esac
+            ACTIVE_SERVICES+=("$SERVICE")
+            ACTIVE_LABELS+=("$LABEL")
+        done
+
+        clear
+        show_banner
+        echo ""
+        box_top
+        box_line "${WHITE}${BOLD}Fechar porta aberta${NC}"
+        box_mid
+        if ((${#ACTIVE_SERVICES[@]} == 0)); then
+            box_line "${YELLOW}Nenhum serviço WSPRO ativo.${NC}"
+        else
+            for ((INDEX=0; INDEX<${#ACTIVE_SERVICES[@]}; INDEX++)); do
+                printf -v CHOICE '%02d' "$((INDEX + 1))"
+                box_line "${WHITE}[${CHOICE}]${NC} - ${ACTIVE_LABELS[$INDEX]}"
+            done
+        fi
+        box_mid
+        box_line "${WHITE}[00]${NC} - VOLTAR"
+        box_bottom
+        echo ""
+        read -r -p "Escolha a porta para fechar: " CHOICE
+        [[ "$CHOICE" == "00" || "$CHOICE" == "0" || -z "$CHOICE" ]] && return
+        if [[ "$CHOICE" =~ ^[0-9]+$ ]] && ((10#$CHOICE >= 1 && 10#$CHOICE <= ${#ACTIVE_SERVICES[@]})); then
+            SELECTED=${ACTIVE_SERVICES[$((10#$CHOICE - 1))]}
+            close_service "$SELECTED"
+        else
+            echo -e "${RED}Opção inválida.${NC}"
+            sleep 1
+        fi
+    done
 }
 
 manage_special_service() {
@@ -409,7 +458,7 @@ show_menu() {
     show_active_ports
     box_mid
     box_line "${WHITE}[01]${NC} - ABRIR PORTA"
-    box_line "${WHITE}[02]${NC} - FECHAR PORTA"
+    box_line "${WHITE}[02]${NC} - FECHAR PORTA ABERTA"
     box_line "${WHITE}[03]${NC} - REINICIAR PORTA"
     box_line "${MAGENTA}[04]${NC} - PROXY + PROTOCOLO"
     box_line "${BLUE}[05]${NC} - PROTOCOLO INTEGRADO"
