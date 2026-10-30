@@ -176,7 +176,7 @@ async fn handle_tls_dual(
 
     if http_str.contains("HTTP/1.") {
         // Fator 1: Keep-Alive nos headers (timeout=30, max=100)
-        let resp = format!("HTTP/1.1 101 ({})\r\nConnection: keep-alive\r\nKeep-Alive: timeout=30, max=100\r\n\r\nHTTP/1.1 200 ({})\r\nConnection: keep-alive\r\nKeep-Alive: timeout=30, max=100\r\n\r\n", status, status);
+        let resp = format!("HTTP/1.1 101 Switching Protocols\r\nConnection: keep-alive\r\nKeep-Alive: timeout=30, max=100\r\n\r\nHTTP/1.1 200 {}\r\nConnection: keep-alive\r\nKeep-Alive: timeout=30, max=100\r\n\r\n", status);
         tls_stream.write_all(resp.as_bytes()).await.map_err(|e| Box::new(e) as XhttpError)?;
         return handle_ssh_direct_tls(tls_stream, ssh_port, None).await;
     }
@@ -202,7 +202,7 @@ async fn handle_http_dual_raw(mut stream: TcpStream, status: &str, ssh_port: u16
 
     if http_str.contains("HTTP/1.") {
         // Fator 1: Keep-Alive nos headers (timeout=30, max=100)
-        let resp = format!("HTTP/1.1 101 ({})\r\nConnection: keep-alive\r\nKeep-Alive: timeout=30, max=100\r\n\r\nHTTP/1.1 200 ({})\r\nConnection: keep-alive\r\nKeep-Alive: timeout=30, max=100\r\n\r\n", status, status);
+        let resp = format!("HTTP/1.1 101 Switching Protocols\r\nConnection: keep-alive\r\nKeep-Alive: timeout=30, max=100\r\n\r\nHTTP/1.1 200 {}\r\nConnection: keep-alive\r\nKeep-Alive: timeout=30, max=100\r\n\r\n", status);
         stream.write_all(resp.as_bytes()).await.map_err(|e| Box::new(e) as XhttpError)?;
     }
     

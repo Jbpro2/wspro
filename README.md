@@ -146,3 +146,11 @@ ss -tlnp | grep 443
 - OpenSSH Server (rodando na porta 22)
 - OpenSSL (para certificados)
 - Porta 443 aberta no firewall
+
+## Teste experimental WebSocket
+
+A opção **[07] WEBSOCKET TESTE** inicia um serviço separado do modo padrão. Ela aceita um handshake WebSocket RFC 6455, encaminha os frames de dados para o backend TCP/SSH configurado e encapsula a resposta em frames binários. O padrão é `ws://IP_DO_SERVIDOR:8081/` com backend `127.0.0.1:22`. Este teste não usa TLS (`wss://`) e **não é BHTTP**.
+
+O binário separado é instalado em `/opt/mpro/proxy-websocket`. Pelo menu, abra **[07]**, configure a porta e backend e use o submenu para reiniciar ou fechar o serviço. O protocolo é experimental; a conexão WebSocket exige um cliente que faça handshake RFC 6455 e envie frames mascarados.
+
+Nos modos HTTP/XHTTP existentes, a primeira linha de resposta usa `HTTP/1.1 101 Switching Protocols`; o status configurado no menu permanece na resposta `200`. Isso altera o texto do status, mas não transforma esses modos em WebSocket.

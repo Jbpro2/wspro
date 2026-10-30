@@ -7,6 +7,7 @@
 LKPROXY="/opt/mpro/proxy"
 LKPROXY_XHTTP="/opt/mpro/proxy-xhttp"
 LKPROXY_INTEGRATED="/opt/mpro/proxy-integrated"
+LKPROXY_WEBSOCKET="/opt/mpro/proxy-websocket"
 SYSTEMD_DIR="/etc/systemd/system"
 
 # Cores
@@ -67,6 +68,7 @@ show_active_ports() {
     ACTIVE=""
     XHTTP_ACTIVE=false
     INTEGRATED_ACTIVE=false
+    WEBSOCKET_ACTIVE=false
 
     for service_file in ${SYSTEMD_DIR}/proxy-*.service; do
         if [ -f "$service_file" ]; then
@@ -76,6 +78,8 @@ show_active_ports() {
                     XHTTP_ACTIVE=true
                 elif [ "$NAME" = "integrated" ]; then
                     INTEGRATED_ACTIVE=true
+                elif [ "$NAME" = "websocket" ]; then
+                    WEBSOCKET_ACTIVE=true
                 else
                     ACTIVE="$ACTIVE $NAME"
                 fi
@@ -92,6 +96,9 @@ show_active_ports() {
     fi
     if [ "$INTEGRATED_ACTIVE" = true ]; then
         ports_str="${ports_str}${ports_str:+ }${GREEN}INTEGRADO${NC}"
+    fi
+    if [ "$WEBSOCKET_ACTIVE" = true ]; then
+        ports_str="${ports_str}${ports_str:+ }${MAGENTA}WEBSOCKET TESTE${NC}"
     fi
     if [ -z "$ports_str" ]; then
         ports_str="${RED}nenhuma${NC}"
@@ -256,6 +263,60 @@ EOF
     read -p "Pressione Enter para continuar..."
 }
 
+open_websocket() {
+    clear
+    show_banner
+    echo ""
+    box_top
+    box_line "${WHITE}${BOLD}WEBSOCKET TESTE - SSH${NC}"
+    box_mid
+    box_line "Protocolo experimental separado do modo padrão."
+    box_line "Este teste usa WebSocket sem TLS (ws://)."
+    box_bottom
+    echo ""
+
+    if [[ ! -x "$LKPROXY_WEBSOCKET" ]]; then
+        echo -e "${RED}Binário WebSocket não instalado. Use [06] para atualizar.${NC}"
+        read -r -p "Enter para continuar..." _
+        return
+    fi
+
+    read -r -p "Porta WebSocket (Enter para 8081): " PORT
+    [[ -z "$PORT" ]] && PORT="8081"
+    read -r -p "Porta SSH backend (Enter para 22): " SSH_PORT
+    [[ -z "$SSH_PORT" ]] && SSH_PORT="22"
+
+    if [[ ! "$PORT" =~ ^[0-9]+$ ]] || ((10#$PORT < 1 || 10#$PORT > 65535)) ||
+       [[ ! "$SSH_PORT" =~ ^[0-9]+$ ]] || ((10#$SSH_PORT < 1 || 10#$SSH_PORT > 65535)); then
+        echo -e "${RED}Porta inválida. Use um número entre 1 e 65535.${NC}"
+        read -r -p "Enter para continuar..." _
+        return
+    fi
+
+    cat > "${SYSTEMD_DIR}/proxy-websocket.service" << EOF
+[Unit]
+Description=WSPRO WebSocket Test - SSH ${PORT}
+After=network.target
+[Service]
+Type=simple
+ExecStart=${LKPROXY_WEBSOCKET} --port ${PORT} --ssh-port ${SSH_PORT}
+Restart=on-failure
+RestartSec=5
+User=root
+WorkingDirectory=/opt/mpro
+[Install]
+WantedBy=multi-user.target
+EOF
+    systemctl daemon-reload
+    systemctl enable proxy-websocket.service 2>/dev/null
+    if systemctl restart proxy-websocket.service 2>/dev/null; then
+        echo -e "${GREEN}WebSocket de teste iniciado na porta ${PORT}; backend SSH ${SSH_PORT}.${NC}"
+    else
+        echo -e "${RED}Falha ao iniciar o serviço WebSocket. Confira journalctl -u proxy-websocket.${NC}"
+    fi
+    read -r -p "Enter para continuar..." _
+}
+
 restart_port() {
     clear
     show_banner
@@ -264,7 +325,7 @@ restart_port() {
     show_active_ports
     box_bottom
     echo ""
-    read -p "Porta (ou integrated): " PORT
+    read -p "Porta (ou integrated/websocket): " PORT
     [[ -z "$PORT" ]] && return
     systemctl restart "proxy-${PORT}.service" 2>/dev/null
     echo -e "${GREEN}Porta ${PORT} reiniciada!${NC}"
@@ -302,6 +363,7 @@ close_port() {
             case "$NAME" in
                 integrated) LABEL="INTEGRADO" ;;
                 443) LABEL="XHTTP (443)" ;;
+                websocket) LABEL="WEBSOCKET TESTE" ;;
                 *) LABEL="PORTA ${NAME}" ;;
             esac
             ACTIVE_SERVICES+=("$SERVICE")
@@ -463,6 +525,7 @@ show_menu() {
     box_line "${MAGENTA}[04]${NC} - PROXY + PROTOCOLO"
     box_line "${BLUE}[05]${NC} - PROTOCOLO INTEGRADO"
     box_line "${GREEN}[06]${NC} - ATUALIZAR PELO GITHUB"
+    box_line "${MAGENTA}[07]${NC} - WEBSOCKET TESTE (EXPERIMENTAL)"
     box_line ""
     box_line "${WHITE}[00]${NC} - SAIR"
     box_bottom
@@ -480,6 +543,7 @@ while true; do
         04|4) manage_special_service "PROXY + PROTOCOLO XHTTP" "proxy-443.service" open_xhttp ;;
         05|5) manage_special_service "PROTOCOLO INTEGRADO" "proxy-integrated.service" open_integrated ;;
         06|6) update_from_github ;;
+        07|7) manage_special_service "WEBSOCKET TESTE" "proxy-websocket.service" open_websocket ;;
         00|0) exit 0 ;;
         *) sleep 1 ;;
     esac

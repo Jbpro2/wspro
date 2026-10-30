@@ -70,7 +70,7 @@ async fn handle_client(
 
     // SEMPRE envia 101 primeiro
     client_stream
-        .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
+        .write_all(b"HTTP/1.1 101 Switching Protocols\r\n\r\n")
         .await?;
 
     // SEMPRE le do cliente
