@@ -157,7 +157,6 @@ open_port() {
     box_mid
     box_line "${WHITE}Portas padrão: 80, 8080, 8880, 3128${NC}"
     box_line "${YELLOW}Porta 443: use opção [04] PROXY + PROTOCOLO${NC}"
-    box_line "${CYAN}BHTTP teste: handshake DTunnel/1.1${NC}"
     box_bottom
     echo ""
     read -p "Porta: " PORT
