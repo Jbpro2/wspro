@@ -12,6 +12,7 @@ async fn main() -> Result<(), Error> {
     let status = get_status();
     let use_udp = has_arg("-u");
     let use_quic = has_arg("-q");
+    let ssh_only = has_arg("-ssh");
     let quic_port = get_quic_port();
 
     println!("[WSPRO] Multi-protocolo v2.5.0");
@@ -36,18 +37,18 @@ async fn main() -> Result<(), Error> {
     let listener = TcpListener::bind(format!("[::]:{}", port)).await?;
     println!("Aguardando conexoes TCP...");
     
-    start_http(listener, status).await;
+    start_http(listener, status, ssh_only).await;
     Ok(())
 }
 
-async fn start_http(listener: TcpListener, status: String) {
+async fn start_http(listener: TcpListener, status: String, ssh_only: bool) {
     let status_arc = Arc::new(status);
     loop {
         match listener.accept().await {
             Ok((client_stream, addr)) => {
                 let status = status_arc.clone();
                 tokio::spawn(async move {
-                    if let Err(e) = handle_client(client_stream, &status).await {
+                    if let Err(e) = handle_client(client_stream, &status, ssh_only).await {
                         println!("Erro ao processar cliente {}: {}", addr, e);
                     }
                 });
@@ -59,7 +60,14 @@ async fn start_http(listener: TcpListener, status: String) {
     }
 }
 
-async fn handle_client(mut client_stream: TcpStream, status: &str) -> Result<(), Error> {
+async fn handle_client(
+    mut client_stream: TcpStream,
+    status: &str,
+    ssh_only: bool,
+) -> Result<(), Error> {
+    // Evita o atraso do algoritmo Nagle em tráfego interativo/pequeno.
+    client_stream.set_nodelay(true)?;
+
     // SEMPRE envia 101 primeiro
     client_stream
         .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
@@ -73,28 +81,41 @@ async fn handle_client(mut client_stream: TcpStream, status: &str) -> Result<(),
     client_stream
         .write_all(format!("HTTP/1.1 200 {}\r\n\r\n", status).as_bytes())
         .await?;
-    // Detecta SSH vs VPN pelo peek
-    let mut addr_proxy = "127.0.0.1:22";
-    let result = timeout(Duration::from_secs(2), peek_stream(&mut client_stream)).await
-        .unwrap_or_else(|_| Ok(String::new()));
-    if let Ok(data) = result {
-        if data.contains("SSH") || data.is_empty() {
-            addr_proxy = "127.0.0.1:22";
-        } else {
-            addr_proxy = "127.0.0.1:1194";
+    // Se o menu foi configurado como SSH-only, não tenta o backend VPN.
+    // Caso contrário, detecta SSH versus VPN/OpenVPN sem consumir o payload.
+    let addr_proxy = if ssh_only {
+        "127.0.0.1:22"
+    } else {
+        match timeout(
+            Duration::from_millis(200),
+            peek_stream(&client_stream),
+        )
+        .await
+        {
+            Ok(Ok(data)) if data.contains("SSH") || data.is_empty() => "127.0.0.1:22",
+            Ok(_) => "127.0.0.1:1194",
+            Err(_) => "127.0.0.1:22",
         }
-    }
-    let server_connect = timeout(Duration::from_secs(5), TcpStream::connect(addr_proxy)).await;
-    let server_stream = match server_connect {
-        Ok(Ok(s)) => s,
-        _ => return Ok(()),
     };
-    let (mut client_read, mut client_write) = client_stream.into_split();
-    let (mut server_read, mut server_write) = server_stream.into_split();
-    let _ = tokio::join!(
-        tokio::io::copy(&mut client_read, &mut server_write),
-        tokio::io::copy(&mut server_read, &mut client_write)
-    );
+    println!("[HTTP] Backend selecionado: {}", addr_proxy);
+
+    let server_connect = timeout(Duration::from_secs(3), TcpStream::connect(addr_proxy)).await;
+    let mut server_stream = match server_connect {
+        Ok(Ok(s)) => s,
+        Ok(Err(error)) => {
+            println!("[HTTP] Falha ao conectar em {}: {}", addr_proxy, error);
+            return Ok(());
+        }
+        Err(_) => {
+            println!("[HTTP] Timeout conectando em {}", addr_proxy);
+            return Ok(());
+        }
+    };
+    server_stream.set_nodelay(true)?;
+
+    // Mantém o túnel nos dois sentidos; cada lado pode encerrar sua metade
+    // sem interromper prematuramente a resposta do outro lado.
+    let _ = tokio::io::copy_bidirectional(&mut client_stream, &mut server_stream).await;
     Ok(())
 }
 
