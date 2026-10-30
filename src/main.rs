@@ -6,8 +6,6 @@ use tokio::net::{TcpListener, TcpStream, UdpSocket};
 
 use tokio::time::{timeout, Duration};
 
-const TCP_COPY_BUFFER_SIZE: usize = 32 * 1024;
-
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let port = get_port();
@@ -111,15 +109,8 @@ async fn relay_to_backend(mut client_stream: TcpStream, addr: &str) -> Result<()
         .map_err(|_| Error::new(std::io::ErrorKind::TimedOut, "timeout conectando backend"))??;
     server_stream.set_nodelay(true)?;
 
-    // Buffers maiores reduzem o número de cópias/syscalls sob carga; Nagle fica
-    // desativado nos dois sockets para conservar baixa latência interativa.
-    let _ = tokio::io::copy_bidirectional_with_sizes(
-        &mut client_stream,
-        &mut server_stream,
-        TCP_COPY_BUFFER_SIZE,
-        TCP_COPY_BUFFER_SIZE,
-    )
-    .await;
+    // Mantém a cópia bidirecional com os buffers padrão do Tokio.
+    let _ = tokio::io::copy_bidirectional(&mut client_stream, &mut server_stream).await;
     Ok(())
 }
 
