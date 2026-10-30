@@ -92,7 +92,7 @@ async fn handle_client(mut client_stream: TcpStream, status: &str) -> Result<(),
     println!("[HTTP] Protocolo detectado, backend: {}", addr_proxy);
 
     let server_connect = timeout(Duration::from_secs(5), TcpStream::connect(addr_proxy)).await;
-    let server_stream = match server_connect {
+    let mut server_stream = match server_connect {
         Ok(Ok(stream)) => stream,
         Ok(Err(error)) => {
             println!("[HTTP] Falha ao conectar em {}: {}", addr_proxy, error);
