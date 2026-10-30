@@ -6,6 +6,9 @@ use tokio::net::{TcpListener, TcpStream, UdpSocket};
 
 use tokio::time::{timeout, Duration};
 
+const TCP_COPY_BUFFER_SIZE: usize = 32 * 1024;
+const DTUNNEL_CLIENT_HELLO: &[u8] = b"DTUNNEL/1.1 CLIENT_HELLO";
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let port = get_port();
@@ -68,6 +71,41 @@ async fn handle_client(
     // Evita o atraso do algoritmo Nagle em tráfego interativo/pequeno.
     client_stream.set_nodelay(true)?;
 
+    // Tentativa experimental de compatibilidade com o handshake DTunnel/BHTTP
+    // já reconhecido pelo binário integrado. O restante do HTTP não é alterado.
+    let mut initial_peek = [0u8; 128];
+    let is_dtunnel_client = match timeout(
+        Duration::from_millis(200),
+        client_stream.peek(&mut initial_peek),
+    )
+    .await
+    {
+        Ok(Ok(n)) if n >= DTUNNEL_CLIENT_HELLO.len() => {
+            &initial_peek[..DTUNNEL_CLIENT_HELLO.len()] == DTUNNEL_CLIENT_HELLO
+        }
+        _ => false,
+    };
+
+    if is_dtunnel_client {
+        match timeout(Duration::from_secs(2), consume_dtunnel_client_hello(&mut client_stream))
+            .await
+        {
+            Ok(Ok(())) => {}
+            Ok(Err(error)) => return Err(error),
+            Err(_) => {
+                return Err(Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "timeout lendo handshake DTunnel/BHTTP",
+                ));
+            }
+        }
+        client_stream
+            .write_all(b"DTUNNEL/1.1 200 OK\r\n\r\n")
+            .await?;
+        println!("[BHTTP teste] Handshake DTunnel detectado; encaminhando para SSH.");
+        return relay_to_backend(client_stream, "127.0.0.1:22").await;
+    }
+
     // SEMPRE envia 101 primeiro
     client_stream
         .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
@@ -99,23 +137,41 @@ async fn handle_client(
     };
     println!("[HTTP] Backend selecionado: {}", addr_proxy);
 
-    let server_connect = timeout(Duration::from_secs(3), TcpStream::connect(addr_proxy)).await;
-    let mut server_stream = match server_connect {
-        Ok(Ok(s)) => s,
-        Ok(Err(error)) => {
-            println!("[HTTP] Falha ao conectar em {}: {}", addr_proxy, error);
+    relay_to_backend(client_stream, addr_proxy).await?;
+    Ok(())
+}
+
+async fn consume_dtunnel_client_hello(stream: &mut TcpStream) -> Result<(), Error> {
+    let mut header = Vec::with_capacity(64);
+    let mut byte = [0u8; 1];
+    while header.len() < 1024 {
+        stream.read_exact(&mut byte).await?;
+        header.push(byte[0]);
+        if header.ends_with(b"\r\n\r\n") {
             return Ok(());
         }
-        Err(_) => {
-            println!("[HTTP] Timeout conectando em {}", addr_proxy);
-            return Ok(());
-        }
-    };
+    }
+    Err(Error::new(
+        std::io::ErrorKind::InvalidData,
+        "handshake DTunnel excede 1024 bytes",
+    ))
+}
+
+async fn relay_to_backend(mut client_stream: TcpStream, addr: &str) -> Result<(), Error> {
+    let mut server_stream = timeout(Duration::from_secs(3), TcpStream::connect(addr))
+        .await
+        .map_err(|_| Error::new(std::io::ErrorKind::TimedOut, "timeout conectando backend"))??;
     server_stream.set_nodelay(true)?;
 
-    // Mantém o túnel nos dois sentidos; cada lado pode encerrar sua metade
-    // sem interromper prematuramente a resposta do outro lado.
-    let _ = tokio::io::copy_bidirectional(&mut client_stream, &mut server_stream).await;
+    // Buffers maiores reduzem o número de cópias/syscalls sob carga; Nagle fica
+    // desativado nos dois sockets para conservar baixa latência interativa.
+    let _ = tokio::io::copy_bidirectional_with_sizes(
+        &mut client_stream,
+        &mut server_stream,
+        TCP_COPY_BUFFER_SIZE,
+        TCP_COPY_BUFFER_SIZE,
+    )
+    .await;
     Ok(())
 }
 
