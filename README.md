@@ -36,6 +36,8 @@ wspro   # Menu interativo (comando curto)
 mpro    # Menu interativo (compatibilidade)
 ```
 
+No menu, escolha **[06] ATUALIZAR PELO GITHUB** para baixar a versão mais recente do branch `main`, recompilar os binários e atualizar o menu. A operação pede confirmação e pode reiniciar os serviços ativos.
+
 ### Menu v2.0
 
 ```

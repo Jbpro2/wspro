@@ -340,6 +340,65 @@ manage_special_service() {
     done
 }
 
+update_from_github() {
+    local CONFIRM="" UPDATE_SCRIPT=""
+    clear
+    show_banner
+    echo ""
+    box_top
+    box_line "${WHITE}${BOLD}Atualizar WSPRO pelo GitHub${NC}"
+    box_mid
+    box_line "A atualização recompila os binários."
+    box_line "Os serviços podem reiniciar durante o processo."
+    box_bottom
+    echo ""
+    read -r -p "Continuar com a atualização? (s/N): " CONFIRM
+    [[ "$CONFIRM" != "s" && "$CONFIRM" != "S" ]] && return
+
+    if [[ "$EUID" -ne 0 ]]; then
+        echo -e "${RED}Execute o menu como root para atualizar.${NC}"
+        read -r -p "Enter para continuar..." _
+        return
+    fi
+    if ! command -v curl >/dev/null 2>&1; then
+        echo -e "${RED}curl não está instalado; não foi possível buscar a atualização.${NC}"
+        read -r -p "Enter para continuar..." _
+        return
+    fi
+
+    UPDATE_SCRIPT=$(mktemp /tmp/wspro-update.XXXXXX.sh) || {
+        echo -e "${RED}Não foi possível criar arquivo temporário.${NC}"
+        read -r -p "Enter para continuar..." _
+        return
+    }
+    echo -e "${CYAN}Baixando instalador mais recente do GitHub...${NC}"
+    if ! curl -fsSL --connect-timeout 15 --max-time 60 \
+        "https://raw.githubusercontent.com/Jbpro2/wspro/main/install.sh" \
+        -o "$UPDATE_SCRIPT"; then
+        rm -f "$UPDATE_SCRIPT"
+        echo -e "${RED}Falha ao baixar o instalador. Nada foi atualizado.${NC}"
+        read -r -p "Enter para continuar..." _
+        return
+    fi
+
+    if ! grep -q 'REPO_URL="https://github.com/Jbpro2/wspro.git"' "$UPDATE_SCRIPT"; then
+        rm -f "$UPDATE_SCRIPT"
+        echo -e "${RED}O arquivo baixado não passou na validação do repositório.${NC}"
+        read -r -p "Enter para continuar..." _
+        return
+    fi
+
+    bash "$UPDATE_SCRIPT"
+    local UPDATE_RESULT=$?
+    rm -f "$UPDATE_SCRIPT"
+    if [[ $UPDATE_RESULT -eq 0 ]]; then
+        echo -e "${GREEN}Atualização concluída.${NC}"
+    else
+        echo -e "${RED}A atualização falhou; confira as mensagens acima.${NC}"
+    fi
+    read -r -p "Enter para voltar ao menu..." _
+}
+
 show_menu() {
     clear
     show_banner
@@ -354,6 +413,7 @@ show_menu() {
     box_line "${WHITE}[03]${NC} - REINICIAR PORTA"
     box_line "${MAGENTA}[04]${NC} - PROXY + PROTOCOLO"
     box_line "${BLUE}[05]${NC} - PROTOCOLO INTEGRADO"
+    box_line "${GREEN}[06]${NC} - ATUALIZAR PELO GITHUB"
     box_line ""
     box_line "${WHITE}[00]${NC} - SAIR"
     box_bottom
@@ -370,6 +430,7 @@ while true; do
         03|3) restart_port ;;
         04|4) manage_special_service "PROXY + PROTOCOLO XHTTP" "proxy-443.service" open_xhttp ;;
         05|5) manage_special_service "PROTOCOLO INTEGRADO" "proxy-integrated.service" open_integrated ;;
+        06|6) update_from_github ;;
         00|0) exit 0 ;;
         *) sleep 1 ;;
     esac

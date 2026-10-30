@@ -76,9 +76,11 @@ fi
 show_progress "Instalando binários..."
 mkdir -p /opt/mpro
 
-# Parar processos antigos para liberar os arquivos
-pkill -f "mpro" > /dev/null 2>&1
-pkill -f "mpro-xhttp" > /dev/null 2>&1
+# Parar somente os binários do proxy; não encerrar o menu wspro que iniciou
+# esta atualização.
+pkill -f '^/opt/mpro/proxy([[:space:]]|$)' > /dev/null 2>&1 || true
+pkill -f '^/opt/mpro/proxy-xhttp([[:space:]]|$)' > /dev/null 2>&1 || true
+pkill -f '^/opt/mpro/proxy-integrated([[:space:]]|$)' > /dev/null 2>&1 || true
 sleep 1
 
 # Copiar com força (-f)
