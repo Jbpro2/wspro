@@ -368,7 +368,7 @@ while true; do
         01|1) open_port ;;
         02|2) close_port ;;
         03|3) restart_port ;;
-        04|4) manage_special_service "PROXY + PROTOCOLO (443)" "proxy-443.service" open_xhttp ;;
+        04|4) manage_special_service "PROXY + PROTOCOLO XHTTP" "proxy-443.service" open_xhttp ;;
         05|5) manage_special_service "PROTOCOLO INTEGRADO" "proxy-integrated.service" open_integrated ;;
         00|0) exit 0 ;;
         *) sleep 1 ;;
