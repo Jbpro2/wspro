@@ -60,53 +60,41 @@ async fn start_http(listener: TcpListener, status: String) {
 }
 
 async fn handle_client(mut client_stream: TcpStream, status: &str) -> Result<(), Error> {
-    // Primeiro handshake 101.
+    // SEMPRE envia 101 primeiro
     client_stream
         .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
         .await?;
 
-    // Consome o pedido/controle inicial do cliente, como no fluxo original.
-    // Esses bytes não são dados do túnel e não devem ser enviados ao SSH/VPN.
-    let mut handshake_buffer = [0u8; 1024];
-    let _ = timeout(
-        Duration::from_secs(5),
-        client_stream.read(&mut handshake_buffer),
-    )
-    .await;
+    // SEMPRE le do cliente
+    let mut buffer = vec![0; 1024];
+    let _ = client_stream.read(&mut buffer).await?;
 
-    // Segundo 101 e status final configurado, conforme o perfil HTTP do cliente.
-    client_stream
-        .write_all(format!("HTTP/1.1 101 {}\r\n\r\n", status).as_bytes())
-        .await?;
+    // SEMPRE envia 200
     client_stream
         .write_all(format!("HTTP/1.1 200 {}\r\n\r\n", status).as_bytes())
         .await?;
-
-    // Detecção multiprotocolo: SSH (22) ou VPN/OpenVPN (1194).
-    // peek observa os próximos bytes sem consumi-los.
-    let addr_proxy = match timeout(Duration::from_secs(5), peek_stream(&client_stream)).await {
-        Ok(Ok(data)) if data.contains("SSH") || data.is_empty() => "127.0.0.1:22",
-        Ok(_) => "127.0.0.1:1194",
-        Err(_) => "127.0.0.1:22",
-    };
-    println!("[HTTP] Protocolo detectado, backend: {}", addr_proxy);
-
+    // Detecta SSH vs VPN pelo peek
+    let mut addr_proxy = "127.0.0.1:22";
+    let result = timeout(Duration::from_secs(2), peek_stream(&mut client_stream)).await
+        .unwrap_or_else(|_| Ok(String::new()));
+    if let Ok(data) = result {
+        if data.contains("SSH") || data.is_empty() {
+            addr_proxy = "127.0.0.1:22";
+        } else {
+            addr_proxy = "127.0.0.1:1194";
+        }
+    }
     let server_connect = timeout(Duration::from_secs(5), TcpStream::connect(addr_proxy)).await;
-    let mut server_stream = match server_connect {
-        Ok(Ok(stream)) => stream,
-        Ok(Err(error)) => {
-            println!("[HTTP] Falha ao conectar em {}: {}", addr_proxy, error);
-            return Ok(());
-        }
-        Err(_) => {
-            println!("[HTTP] Timeout conectando em {}", addr_proxy);
-            return Ok(());
-        }
+    let server_stream = match server_connect {
+        Ok(Ok(s)) => s,
+        _ => return Ok(()),
     };
-
-    // Mantém o túnel bidirecional sem encaminhar o buffer de handshake.
-    let _ = tokio::io::copy_bidirectional(&mut client_stream, &mut server_stream).await;
-
+    let (mut client_read, mut client_write) = client_stream.into_split();
+    let (mut server_read, mut server_write) = server_stream.into_split();
+    let _ = tokio::join!(
+        tokio::io::copy(&mut client_read, &mut server_write),
+        tokio::io::copy(&mut server_read, &mut client_write)
+    );
     Ok(())
 }
 
