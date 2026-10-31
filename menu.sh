@@ -594,8 +594,8 @@ uninstall_proxy() {
         return 1
     fi
 
-    read -r -p "Para confirmar, digite DESINSTALAR: " CONFIRM
-    if [[ "$CONFIRM" != "DESINSTALAR" ]]; then
+    read -r -p "Deseja Desinstalar Proxy? (s/n): " CONFIRM
+    if [[ "$CONFIRM" != "s" && "$CONFIRM" != "S" ]]; then
         echo -e "${YELLOW}Desinstalação cancelada.${NC}"
         read -r -p "Enter para voltar..." _
         return 0
