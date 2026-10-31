@@ -147,10 +147,12 @@ ss -tlnp | grep 443
 - OpenSSL (para certificados)
 - Porta 443 aberta no firewall
 
-## Teste experimental WebSocket
+## Opção 07 — Multiprotocolo global
 
-A opção **[07] WEBSOCKET TESTE** inicia um serviço separado do modo padrão. Ela aceita um handshake WebSocket RFC 6455, encaminha os frames de dados para o backend TCP/SSH configurado e encapsula a resposta em frames binários. O padrão é `ws://IP_DO_SERVIDOR:8081/` com backend `127.0.0.1:22`. Este teste não usa TLS (`wss://`) e **não é BHTTP**.
+A opção **[07] MULTIPROTOCOLO GLOBAL** aplica a detecção automática a todas as portas numéricas abertas pela opção **[01]**. A detecção atual encaminha tráfego SSH para `127.0.0.1:22` e o outro tráfego reconhecido pelo handler para `127.0.0.1:1194` (VPN/OpenVPN).
 
-O binário separado é instalado em `/opt/mpro/proxy-websocket`. Pelo menu, abra **[07]**, configure a porta e backend e use o submenu para reiniciar ou fechar o serviço. O protocolo é experimental; a conexão WebSocket exige um cliente que faça handshake RFC 6455 e envie frames mascarados.
+A opção **[01]** e suas perguntas/configurações por porta permanecem iguais. Com o multiprotocolo global ativo, ele temporariamente se sobrepõe à configuração “somente SSH” nas portas da opção 01; ao desativar, o WSPRO reinicia os serviços e cada porta volta à configuração individual salva. A ativação/desativação pede confirmação e reinicia as portas ativas, encerrando as conexões em andamento. As opções 04 e 05 não são alteradas por esse controle. Isso não adiciona BHTTP nem WebSocket.
 
-Nos modos HTTP/XHTTP existentes, a primeira linha de resposta usa `HTTP/1.1 101 Switching Protocols`; o status configurado no menu permanece na resposta `200`. Isso altera o texto do status, mas não transforma esses modos em WebSocket.
+Se o serviço experimental WebSocket da versão anterior estiver instalado, a atualização pelo menu **[06]** o desativa e remove para liberar a porta que ele usava.
+
+Nos modos HTTP/XHTTP existentes, a primeira linha de resposta usa `HTTP/1.1 101 Switching Protocols`; o status configurado no menu permanece na resposta `200`.

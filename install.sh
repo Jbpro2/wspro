@@ -78,10 +78,14 @@ mkdir -p /opt/mpro
 
 # Parar somente os binários do proxy; não encerrar o menu wspro que iniciou
 # esta atualização.
+systemctl stop proxy-websocket.service > /dev/null 2>&1 || true
+systemctl disable proxy-websocket.service > /dev/null 2>&1 || true
+pkill -f '^/opt/mpro/proxy-websocket([[:space:]]|$)' > /dev/null 2>&1 || true
+rm -f /etc/systemd/system/proxy-websocket.service /opt/mpro/proxy-websocket
+systemctl daemon-reload > /dev/null 2>&1 || true
 pkill -f '^/opt/mpro/proxy([[:space:]]|$)' > /dev/null 2>&1 || true
 pkill -f '^/opt/mpro/proxy-xhttp([[:space:]]|$)' > /dev/null 2>&1 || true
 pkill -f '^/opt/mpro/proxy-integrated([[:space:]]|$)' > /dev/null 2>&1 || true
-pkill -f '^/opt/mpro/proxy-websocket([[:space:]]|$)' > /dev/null 2>&1 || true
 sleep 1
 
 # Copiar com força (-f)
@@ -98,11 +102,6 @@ if [ -f ./target/release/mpro-integrated ]; then
     cp -f ./target/release/mpro-integrated /opt/mpro/proxy-integrated
     chmod +x /opt/mpro/proxy-integrated
     ln -sf /opt/mpro/proxy-integrated /usr/local/bin/mpro-integrated
-fi
-
-if [ -f ./target/release/mpro-websocket ]; then
-    cp -f ./target/release/mpro-websocket /opt/mpro/proxy-websocket
-    chmod +x /opt/mpro/proxy-websocket
 fi
 
 # Menu

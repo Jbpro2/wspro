@@ -1,10 +1,13 @@
 use std::env;
 use std::io::Error;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream, UdpSocket};
 
 use tokio::time::{timeout, Duration};
+
+const MULTIPROTOCOL_FLAG: &str = "/opt/mpro/multiprotocol.enabled";
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -12,11 +15,15 @@ async fn main() -> Result<(), Error> {
     let status = get_status();
     let use_udp = has_arg("-u");
     let use_quic = has_arg("-q");
-    let ssh_only = has_arg("-ssh");
+    let global_multiprotocol = Path::new(MULTIPROTOCOL_FLAG).is_file();
+    let ssh_only = is_ssh_only_mode(has_arg("-ssh"), global_multiprotocol);
     let quic_port = get_quic_port();
 
     println!("[WSPRO] Multi-protocolo v2.5.0");
     println!("[TCP] Porta: {}", port);
+    if global_multiprotocol {
+        println!("[TCP] Multiprotocolo global ativo (SSH/VPN) nesta porta");
+    }
     
     if use_udp {
         println!("[UDP] Habilitado na porta: {}", port);
@@ -165,4 +172,21 @@ fn get_status() -> String {
 
 fn has_arg(arg: &str) -> bool {
     env::args().any(|a| a == arg)
+}
+
+fn is_ssh_only_mode(ssh_flag: bool, global_multiprotocol: bool) -> bool {
+    ssh_flag && !global_multiprotocol
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_ssh_only_mode;
+
+    #[test]
+    fn global_multiprotocol_overrides_ssh_only_flag() {
+        assert!(!is_ssh_only_mode(true, true));
+        assert!(!is_ssh_only_mode(false, true));
+        assert!(is_ssh_only_mode(true, false));
+        assert!(!is_ssh_only_mode(false, false));
+    }
 }
