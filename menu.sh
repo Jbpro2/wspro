@@ -100,9 +100,9 @@ show_active_ports() {
 
     box_line "${YELLOW}Porta(s) ativa(s):${NC} ${ports_str}"
     if [[ -f "$MULTIPROTOCOL_FLAG" ]]; then
-        box_line "${CYAN}Multiprotocolo global: ATIVO (SSH/VPN)${NC}"
+        box_line "${CYAN}Multiprotocolo + status: ATIVO${NC}"
     else
-        box_line "${YELLOW}Multiprotocolo global: DESATIVADO${NC}"
+        box_line "${YELLOW}Multiprotocolo + status: DESATIVADO${NC}"
     fi
 }
 
@@ -306,7 +306,7 @@ apply_global_multiprotocol() {
     done
 
     if [[ "$ENABLE" == "yes" ]]; then
-        echo -e "${GREEN}Multiprotocolo global ATIVADO. SSH/VPN aplicado às portas ativas da opção 01.${NC}"
+        echo -e "${GREEN}Multiprotocolo + multi-status ATIVADO nas portas ativas da opção 01.${NC}"
     else
         echo -e "${YELLOW}Força global removida; cada porta volta à configuração individual.${NC}"
     fi
@@ -321,7 +321,7 @@ manage_multi_protocol() {
         show_banner
         echo ""
         box_top
-        box_line "${WHITE}${BOLD}MULTIPROTOCOLO GLOBAL${NC}"
+        box_line "${WHITE}${BOLD}MULTIPROTOCOLO + MULTI-STATUS${NC}"
         box_mid
         if [[ -f "$MULTIPROTOCOL_FLAG" ]]; then
             box_line "Estado: ${GREEN}ATIVO${NC}"
@@ -329,7 +329,9 @@ manage_multi_protocol() {
             box_line "Estado: ${YELLOW}DESATIVADO${NC}"
         fi
         box_line "Aplica-se às portas numéricas da opção [01]."
-        box_line "Detecção atual: SSH (22) / VPN (1194)."
+        box_line "Detecta payload: SOCKS5, TLS, HTTP/WS, Security, SSH."
+        box_line "HTTP: 101/200; WebSocket: 101 RFC; SOCKS: próprio."
+        box_line "SOCKS5 sem auth: somente SSH local na porta 22."
         box_line "Ativar/desativar reinicia portas ativas."
         box_mid
         box_line "${WHITE}[01]${NC} - ATIVAR GLOBALMENTE"
@@ -556,7 +558,7 @@ show_menu() {
     box_line "${MAGENTA}[04]${NC} - PROXY + PROTOCOLO"
     box_line "${BLUE}[05]${NC} - PROTOCOLO INTEGRADO"
     box_line "${GREEN}[06]${NC} - ATUALIZAR PELO GITHUB"
-    box_line "${MAGENTA}[07]${NC} - MULTIPROTOCOLO GLOBAL (OPÇÃO 01)"
+    box_line "${MAGENTA}[07]${NC} - MULTIPROTOCOLO + MULTI-STATUS"
     box_line ""
     box_line "${WHITE}[00]${NC} - SAIR"
     box_bottom

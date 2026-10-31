@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.35", features = ["full"] }
 anyhow = "1.0"
+base64 = "0.22"
 log = "0.4"
 env_logger = "0.10"
 tokio-rustls = "0.24"
@@ -22,6 +23,7 @@ tun = "0.6"
 etherparse = "0.13"
 net2 = "0.2"
 libc = "0.2"
+sha1 = "0.10"
 
 [[bin]]
 name = "mpro"

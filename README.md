@@ -147,12 +147,12 @@ ss -tlnp | grep 443
 - OpenSSL (para certificados)
 - Porta 443 aberta no firewall
 
-## Opção 07 — Multiprotocolo global
+## Opção 07 — Multiprotocolo + multi-status
 
-A opção **[07] MULTIPROTOCOLO GLOBAL** aplica a detecção automática a todas as portas numéricas abertas pela opção **[01]**. A detecção atual encaminha tráfego SSH para `127.0.0.1:22` e o outro tráfego reconhecido pelo handler para `127.0.0.1:1194` (VPN/OpenVPN).
+A opção **[07] MULTIPROTOCOLO + MULTI-STATUS** liga um dispatcher por conexão em todas as portas numéricas ativas criadas pela opção **[01]**. A opção 01 e suas perguntas/configurações permanecem iguais; as opções 04 e 05 não são alteradas. Ativar ou desativar pede confirmação e reinicia os serviços ativos, encerrando conexões existentes.
 
-A opção **[01]** e suas perguntas/configurações por porta permanecem iguais. Com o multiprotocolo global ativo, ele temporariamente se sobrepõe à configuração “somente SSH” nas portas da opção 01; ao desativar, o WSPRO reinicia os serviços e cada porta volta à configuração individual salva. A ativação/desativação pede confirmação e reinicia as portas ativas, encerrando as conexões em andamento. As opções 04 e 05 não são alteradas por esse controle. Isso não adiciona BHTTP nem WebSocket.
+O dispatcher classifica os prefixos SOCKS5, TLS, HTTP/WebSocket, SECURITY/AUTH e SSH direto antes de encaminhar a conexão. Cada tipo recebe seu handshake próprio: HTTP usa o fluxo 101/200 configurado; WebSocket faz upgrade RFC 6455 com um único 101 válido; SOCKS5 recebe respostas binárias SOCKS5; SSH direto é encaminhado sem status HTTP. O modo SECURITY segue o marcador e o fluxo histórico do projeto, portanto precisa ser validado com o aplicativo que será usado.
 
-Se o serviço experimental WebSocket da versão anterior estiver instalado, a atualização pelo menu **[06]** o desativa e remove para liberar a porta que ele usava.
+Por segurança, SOCKS5 aceita apenas o método sem autenticação e encaminha somente para o SSH local da VPS (`127.0.0.1:22`); não funciona como proxy aberto para destinos arbitrários. Usuário e senha do SSH continuam sendo enviados pelo aplicativo e validados pelo servidor SSH. BHTTP não está implementado.
 
-Nos modos HTTP/XHTTP existentes, a primeira linha de resposta usa `HTTP/1.1 101 Switching Protocols`; o status configurado no menu permanece na resposta `200`.
+Com a opção 07 desligada, o handler TCP/HTTP legado continua sendo usado; a configuração “somente SSH” por porta também volta a valer. O WebSocket agora é um handler dentro do dispatcher, não um serviço/porta separado.
