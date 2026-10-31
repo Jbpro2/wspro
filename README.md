@@ -156,3 +156,7 @@ O dispatcher classifica os prefixos SOCKS5, TLS, HTTP/WebSocket, SECURITY/AUTH e
 Por segurança, SOCKS5 aceita apenas o método sem autenticação e encaminha somente para o SSH local da VPS (`127.0.0.1:22`); não funciona como proxy aberto para destinos arbitrários. Usuário e senha do SSH continuam sendo enviados pelo aplicativo e validados pelo servidor SSH. BHTTP não está implementado.
 
 Com a opção 07 desligada, o handler TCP/HTTP legado continua sendo usado; a configuração “somente SSH” por porta também volta a valer. O WebSocket agora é um handler dentro do dispatcher, não um serviço/porta separado.
+
+## Opção 08 — Desinstalar Proxy
+
+A opção **[08] DESINSTALAR PROXY** exige execução como root e confirmação digitando `DESINSTALAR`. Ela para e desabilita somente os serviços systemd cuja linha `ExecStart` aponta para os binários WSPRO em `/opt/mpro`, remove os links instalados em `/usr/local/bin` quando ainda apontam para o WSPRO e apaga os binários, menu, certificados TLS e marcador multiprotocolo conhecidos. Não remove OpenSSH, Rust, OpenSSL, regras de firewall nem arquivos desconhecidos que estejam em `/opt/mpro`; se sobrarem arquivos, o diretório é preservado.

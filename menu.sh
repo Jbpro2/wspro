@@ -557,6 +557,120 @@ update_from_github() {
     read -r -p "Enter para voltar ao menu..." _
 }
 
+remove_owned_link() {
+    local LINK="$1"
+    local TARGET="$2"
+    local CURRENT
+    [[ -L "$LINK" ]] || return 0
+    CURRENT=$(readlink -- "$LINK") || return 0
+    [[ "$CURRENT" == "$TARGET" ]] && rm -f -- "$LINK"
+}
+
+uninstall_proxy() {
+    local CONFIRM SERVICE_FILE SERVICE STATE BIN FAILED=0
+    local -a OWNED_SERVICES=()
+    local -a BINARIES=("$LKPROXY" "$LKPROXY_XHTTP" "$LKPROXY_INTEGRATED" "/opt/mpro/proxy-websocket")
+
+    clear
+    show_banner
+    echo ""
+    box_top
+    box_line "${RED}${BOLD}DESINSTALAR WSPRO${NC}"
+    box_mid
+    box_line "Para os serviços do proxy e remove os binários."
+    box_line "Também remove os certificados TLS em /opt/mpro."
+    box_line "SSH, Rust, OpenSSL e outros arquivos ficam preservados."
+    box_mid
+    echo ""
+
+    if [[ "$EUID" -ne 0 ]]; then
+        echo -e "${RED}Execute wspro como root para desinstalar.${NC}"
+        read -r -p "Enter para voltar..." _
+        return 1
+    fi
+    if ! command -v systemctl >/dev/null 2>&1; then
+        echo -e "${RED}systemctl não encontrado; nada foi removido.${NC}"
+        read -r -p "Enter para voltar..." _
+        return 1
+    fi
+
+    read -r -p "Para confirmar, digite DESINSTALAR: " CONFIRM
+    if [[ "$CONFIRM" != "DESINSTALAR" ]]; then
+        echo -e "${YELLOW}Desinstalação cancelada.${NC}"
+        read -r -p "Enter para voltar..." _
+        return 0
+    fi
+
+    for SERVICE_FILE in "${SYSTEMD_DIR}"/proxy-*.service; do
+        [[ -f "$SERVICE_FILE" ]] || continue
+        if grep -Eq '^[[:space:]]*ExecStart=.*/opt/mpro/(proxy|proxy-xhttp|proxy-integrated|proxy-websocket)([[:space:]]|$)' "$SERVICE_FILE"; then
+            OWNED_SERVICES+=("$(basename "$SERVICE_FILE")")
+        fi
+    done
+
+    for SERVICE in "${OWNED_SERVICES[@]}"; do
+        systemctl stop "$SERVICE" >/dev/null 2>&1 || true
+        STATE=$(systemctl show --property=ActiveState --value "$SERVICE" 2>/dev/null) || STATE="unknown"
+        case "$STATE" in
+            inactive|failed) ;;
+            *)
+                echo -e "${RED}${SERVICE} não parou com segurança (estado: ${STATE}); binários mantidos.${NC}"
+                FAILED=1
+                ;;
+        esac
+    done
+    if [[ "$FAILED" -ne 0 ]]; then
+        read -r -p "Resolva os serviços ativos e tente novamente. Enter para voltar..." _
+        return 1
+    fi
+
+    for SERVICE in "${OWNED_SERVICES[@]}"; do
+        if ! systemctl disable "$SERVICE" >/dev/null 2>&1; then
+            echo -e "${RED}Falha ao desabilitar ${SERVICE}; arquivos do proxy foram mantidos.${NC}"
+            read -r -p "Enter para voltar..." _
+            return 1
+        fi
+    done
+    for SERVICE in "${OWNED_SERVICES[@]}"; do
+        rm -f -- "${SYSTEMD_DIR}/${SERVICE}"
+    done
+    if ! systemctl daemon-reload; then
+        echo -e "${RED}Falha ao recarregar systemd; arquivos do proxy foram mantidos.${NC}"
+        read -r -p "Enter para voltar..." _
+        return 1
+    fi
+
+    for BIN in "${BINARIES[@]}"; do
+        pkill -f "^${BIN}([[:space:]]|$)" >/dev/null 2>&1 || true
+    done
+    sleep 1
+    for BIN in "${BINARIES[@]}"; do
+        if pgrep -f "^${BIN}([[:space:]]|$)" >/dev/null 2>&1; then
+            echo -e "${RED}Ainda há um processo ${BIN} ativo; arquivos do proxy foram mantidos.${NC}"
+            read -r -p "Enter para voltar..." _
+            return 1
+        fi
+    done
+
+    remove_owned_link "/usr/local/bin/wspro" "/opt/mpro/menu"
+    remove_owned_link "/usr/local/bin/mpro" "/opt/mpro/menu"
+    remove_owned_link "/usr/local/bin/mpro-xhttp" "$LKPROXY_XHTTP"
+    remove_owned_link "/usr/local/bin/mpro-integrated" "$LKPROXY_INTEGRATED"
+    if ! rm -f -- "$LKPROXY" "$LKPROXY_XHTTP" "$LKPROXY_INTEGRATED" \
+        "/opt/mpro/proxy-websocket" "/opt/mpro/menu" "/opt/mpro/cert.pem" \
+        "/opt/mpro/key.pem" "$MULTIPROTOCOL_FLAG"; then
+        echo -e "${RED}Falha ao remover alguns arquivos; revise /opt/mpro.${NC}"
+        read -r -p "Enter para voltar..." _
+        return 1
+    fi
+    rmdir /opt/mpro 2>/dev/null || true
+
+    echo -e "${GREEN}WSPRO desinstalado. SSH e dependências do sistema foram preservados.${NC}"
+    echo -e "${YELLOW}Arquivos não reconhecidos em /opt/mpro, se houver, foram preservados.${NC}"
+    sleep 3
+    exit 0
+}
+
 show_menu() {
     clear
     show_banner
@@ -573,6 +687,7 @@ show_menu() {
     box_line "${BLUE}[05]${NC} - PROTOCOLO INTEGRADO"
     box_line "${GREEN}[06]${NC} - ATUALIZAR PELO GITHUB"
     box_line "${MAGENTA}[07]${NC} - MULTIPROTOCOLO + MULTI-STATUS"
+    box_line "${RED}[08]${NC} - DESINSTALAR PROXY"
     box_line ""
     box_line "${WHITE}[00]${NC} - SAIR"
     box_bottom
@@ -591,6 +706,7 @@ while true; do
         05|5) manage_special_service "PROTOCOLO INTEGRADO" "proxy-integrated.service" open_integrated ;;
         06|6) update_from_github ;;
         07|7) manage_multi_protocol ;;
+        08|8) uninstall_proxy ;;
         00|0) exit 0 ;;
         *) sleep 1 ;;
     esac
