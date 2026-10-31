@@ -196,13 +196,27 @@ open_xhttp() {
     read -p "Porta SSH backend (Padrão: 22): " SSH_PORT
     [[ -z "$SSH_PORT" ]] && SSH_PORT="22"
     mkdir -p /opt/mpro
+    # Um serviço já ativo não recebe os novos argumentos com `systemctl start`.
+    # Pare-o antes de sobrescrever a unit para garantir que o status novo seja aplicado.
+    if systemctl is-active --quiet "proxy-443.service" 2>/dev/null; then
+        systemctl stop "proxy-443.service" || {
+            echo -e "${RED}Não foi possível parar proxy-443.service; configuração não alterada.${NC}"
+            read -r -p "Enter para continuar..." _
+            return 1
+        }
+    fi
     if [ ! -f "/opt/mpro/cert.pem" ]; then
         openssl req -x509 -newkey rsa:2048 -keyout /opt/mpro/key.pem -out /opt/mpro/cert.pem -days 365 -nodes -subj "/CN=mpro" 2>/dev/null
     fi
     create_xhttp_service "443" "$STATUS" "$SSH_PORT"
     systemctl daemon-reload
     systemctl enable "proxy-443.service" 2>/dev/null
-    systemctl start "proxy-443.service" 2>/dev/null
+    if ! systemctl start "proxy-443.service" 2>/dev/null; then
+        echo -e "${RED}Não foi possível iniciar proxy-443.service com o novo status.${NC}"
+        read -r -p "Enter para continuar..." _
+        return 1
+    fi
+    echo -e "${GREEN}Status HTTP aplicado: 200 ${STATUS}${NC}"
     sleep 2
     read -p "Enter pra continuar..."
 }
